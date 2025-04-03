@@ -1,0 +1,224 @@
+// Automatic FlutterFlow imports
+import '/backend/supabase/supabase.dart';
+import '/flutter_flow/flutter_flow_theme.dart';
+import '/flutter_flow/flutter_flow_util.dart';
+import '/custom_code/widgets/index.dart'; // Imports other custom widgets
+import '/flutter_flow/custom_functions.dart'; // Imports custom functions
+import 'package:flutter/material.dart';
+// Begin custom widget code
+// DO NOT REMOVE OR MODIFY THE CODE ABOVE!
+
+import 'package:flutter_dropzone/flutter_dropzone.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:dotted_border/dotted_border.dart';
+
+class DropzoneAppState extends StatefulWidget {
+  const DropzoneAppState({
+    Key? key,
+    this.width,
+    this.height,
+    this.borderRadius = 12.0,
+    this.borderColor,
+    this.backgroundColor = Colors.transparent,
+    this.borderWidth = 2.0,
+    this.loadingIndicatorColor,
+    this.iconColor,
+    this.iconSize = 48.0,
+    this.textSize,
+    this.textColor,
+    this.hoverBackgroundColor,
+    this.hoverBorderColor,
+    this.textString = 'Drop image here or click to select',
+    this.hoverTextString = 'Drop image to upload',
+    this.bucketName = 'Youtube',
+    this.folderName = 'images',
+  }) : super(key: key);
+
+  final double? width;
+  final double? height;
+  final double borderRadius;
+  final Color? borderColor;
+  final Color backgroundColor;
+  final double borderWidth;
+  final Color? loadingIndicatorColor;
+  final Color? iconColor;
+  final double iconSize;
+  final double? textSize;
+  final Color? textColor;
+  final Color? hoverBackgroundColor;
+  final Color? hoverBorderColor;
+  final String textString;
+  final String hoverTextString;
+  final String bucketName;
+  final String folderName;
+
+  @override
+  _DropzoneAppStateState createState() => _DropzoneAppStateState();
+}
+
+class _DropzoneAppStateState extends State<DropzoneAppState> {
+  late DropzoneViewController controller;
+  bool isLoading = false;
+  bool isHovered = false;
+  bool isDragHovered = false;
+  String statusMessage = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor =
+        widget.borderColor ?? FlutterFlowTheme.of(context).primaryText;
+    final loadingColor =
+        widget.loadingIndicatorColor ?? FlutterFlowTheme.of(context).primary;
+    final iconColor = widget.iconColor ?? borderColor;
+    final textColor =
+        widget.textColor ?? FlutterFlowTheme.of(context).bodyMedium.color;
+    final hoverBackgroundColor = widget.hoverBackgroundColor ??
+        FlutterFlowTheme.of(context).primary.withOpacity(0.1);
+    final hoverBorderColor =
+        widget.hoverBorderColor ?? FlutterFlowTheme.of(context).primary;
+
+    Color currentBackgroundColor = widget.backgroundColor;
+    Color currentBorderColor = borderColor;
+    String currentText = widget.textString;
+
+    if (isHovered || isDragHovered) {
+      currentBackgroundColor = hoverBackgroundColor;
+      currentBorderColor = hoverBorderColor;
+    }
+
+    if (isDragHovered) {
+      currentText = widget.hoverTextString;
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => isHovered = true),
+      onExit: (_) => setState(() => isHovered = false),
+      child: Container(
+        width: widget.width,
+        height: widget.height,
+        decoration: BoxDecoration(
+          color: currentBackgroundColor,
+          borderRadius: BorderRadius.circular(widget.borderRadius),
+        ),
+        child: DottedBorder(
+          borderType: BorderType.RRect,
+          radius: Radius.circular(widget.borderRadius),
+          dashPattern: [5, 5],
+          color: currentBorderColor,
+          strokeWidth: widget.borderWidth,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                DropzoneView(
+                  onCreated: (controller) => this.controller = controller,
+                  onHover: () => setState(() => isDragHovered = true),
+                  onLeave: () => setState(() => isDragHovered = false),
+                  onDrop: (dynamic event) => acceptFile(event),
+                ),
+                if (!isLoading && statusMessage.isEmpty)
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.cloud_upload,
+                          size: widget.iconSize, color: iconColor),
+                      SizedBox(height: 8),
+                      Text(
+                        currentText,
+                        style: FlutterFlowTheme.of(context).bodyMedium.copyWith(
+                              fontSize: widget.textSize,
+                              color: textColor,
+                            ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                if (isLoading)
+                  CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(loadingColor),
+                  ),
+                if (statusMessage.isNotEmpty)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: statusMessage.startsWith('Error')
+                          ? Colors.red.withOpacity(0.8)
+                          : Colors.green.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      statusMessage,
+                      style: TextStyle(color: Colors.white),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future acceptFile(dynamic event) async {
+    setState(() {
+      isLoading = true;
+      statusMessage = '';
+      isDragHovered = false;
+    });
+
+    final name = event.name;
+    final mime = await controller.getFileMIME(event);
+    final bytes = await controller.getFileData(event);
+
+    if (mime.startsWith('image/')) {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final uniqueName = '${timestamp}_$name';
+      final String path = '${widget.folderName}/$uniqueName';
+
+      try {
+        await SupaFlow.client.storage
+            .from(widget.bucketName)
+            .uploadBinary(path, bytes);
+
+        final String imageUrl =
+            SupaFlow.client.storage.from(widget.bucketName).getPublicUrl(path);
+
+        // Update FFAppState with the new image URL
+        FFAppState().update(() {
+          FFAppState().uploadedImageUrl = imageUrl;
+        });
+
+        setState(() {
+          isLoading = false;
+          statusMessage = 'Image uploaded successfully!';
+        });
+
+        print('File uploaded successfully. URL: $imageUrl');
+      } catch (e) {
+        setState(() {
+          isLoading = false;
+          statusMessage = 'Error uploading image. Please try again.';
+        });
+        print('Error uploading file');
+      }
+    } else {
+      setState(() {
+        isLoading = false;
+        statusMessage =
+            'Error: File is not an image. Please select an image file.';
+      });
+      print('File is not an image');
+    }
+
+    // Clear status message after 3 seconds
+    Future.delayed(Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          statusMessage = '';
+        });
+      }
+    });
+  }
+}
